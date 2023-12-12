@@ -4,7 +4,7 @@ from torch import nn
 from torchvision import models
 
 
-class ImageEncoder(nn.Module):
+'''class ImageEncoder(nn.Module):
     """ResNet-based [1] image encoder.
 
     Encodes an image into a `emb_size` vector.
@@ -68,6 +68,67 @@ class ImageEncoder(nn.Module):
             return emb, spatial_emb
 
         return emb
+'''
+class ImageEncoder(nn.Module):
+    """VGG16-based image encoder.
+
+    Encodes an image into a emb_size vector.
+
+    If spatial_features=True, encoder also builds spatial features
+    of the image based on the output of the last block of VGG16.
+    The shape of spatial features is [k x k, emb_size]
+
+    Note: nn.Linear layer is shared for global and spatial encodings.
+    """
+
+    def __init__(self, emb_dim=256, dropout=0.2, spatial_features=False):
+        """Initializes ImageEncoder.
+
+        Args:
+            emb_dim (int): dimensions of the output embedding
+            dropout (float): dropout for the encoded features
+            spatial_features (bool): whether to compute spatial features or not
+        """
+        super().__init__()
+
+        self.spatial_features = spatial_features
+
+        # Load the VGG16 model
+        vgg16 = models.vgg16(pretrained=True)
+        for p in vgg16.parameters():
+            p.requires_grad = False
+        
+        # Remove the last fully connected layers
+        modules = list(vgg16.features)[:-1]  # Retain up to the last convolutional layer
+        self.vgg16 = nn.Sequential(*modules)
+
+        # VGG16 uses an AdaptiveAvgPool2d before the classifier part
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
+
+        # VGG16's classifier part starts with 512 * 7 * 7, adjust accordingly
+        self.linear = nn.Linear(512 * 7 * 7, emb_dim)
+        self.bn = nn.BatchNorm1d(emb_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        """Forward pass for the encoder.
+
+        Args:
+            x (Tensor): input image tensor
+
+        Returns:
+            Tensor: encoded image
+        """
+        x = self.vgg16(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)  # Flatten the tensor
+
+        # Apply the linear layer with batch norm and dropout
+        x = self.linear(x)
+        x = self.bn(x)
+        x = self.dropout(x)
+
+        return x
 
 
 class LabelEncoder(nn.Module):

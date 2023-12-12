@@ -36,7 +36,7 @@ class LSTMDecoder(nn.Module):
             lengths = torch.tensor(x.size(1)).repeat(x.size(0))
 
         # LSTM ouputs
-        packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
+        packed = nn.utils.rnn.pack_padded_sequence(x, lengths.to("cpu"), batch_first=True, enforce_sorted=False)
         outputs, _ = self.lstm(packed)
         outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
